@@ -26,6 +26,14 @@ def main():
         except imaplib.IMAP4.error as error:
             logger.error('IMAP login failed: %s', error)
             return 1
+        # select label read only
+        # the label is SDP Tests because i couldn't make a burner account
+        status, data = mail.select('"SDP Tests"', readonly=True)
+        if status != 'OK':
+            logger.error('Failed to select mailbox: %s', status)
+            return 1
+        # data[0] should be in bytes
+        logger.info('Mailbox selected, %s messages', data[0].decode())
     
     return 0
 

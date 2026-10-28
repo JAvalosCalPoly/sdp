@@ -28,6 +28,25 @@ def parse_email(raw):
         'auth_results': decode_str(msg['Authentication-Results'])
     }
     result['headers']['received'] = [decode_str(received) for received in msg.get_all('Received', [])]
+    text_parts = []
+    html_parts = []
+    for part in msg.walk():
+        if part.get_content_disposition() == 'attachment':
+            continue  # skip files
+        content_type = part.get_content_type()
+        if content_type not in ('text/plain', 'text/html'):
+            continue
+        payload = part.get_payload(decode=True)
+        if payload is None:
+            continue  # empty part
+        charset = part.get_content_charset() or 'utf-8'
+        body = payload.decode(charset, errors='replace')
+        if content_type == 'text/plain':
+            text_parts.append(body)
+        else:
+            html_parts.append(body)
+    result['text'] = '\n'.join(text_parts)
+    result['html'] = '\n'.join(html_parts)
     return result
 
 '''
@@ -89,6 +108,8 @@ def main():
             h = parsed['headers']
             logger.info('%s | %s | %s', h['date'], h['from'], h['subject'])
             logger.info('auth: %s', h['auth_results'])  # temp  
+            logger.info('text: %d chars, html: %d chars', len(parsed['text']), len(parsed['html']))  # temp
+            logger.info('text preview: %r', parsed['text'][:100])  # temp
     return 0
 
 if __name__ == '__main__':

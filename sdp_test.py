@@ -3,12 +3,34 @@ import imaplib # IMAP4 client
 import email # for parsing email messages
 import logging # logging module for logging messages
 from email.header import decode_header # for decoding email headers
+from html.parser import HTMLParser
 
 host = 'imap.gmail.com'
 count = 10
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+class LinkParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.links = []# (text, href)
+        self.href = None
+        self.text = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == 'a':
+            self.href = dict(attrs).get('href')
+            self.text = []
+
+    def handle_data(self, data):
+        if self.href is not None:
+            self.text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == 'a' and self.href is not None:
+            self.links.append((''.join(self.text).strip(), self.href))
+            self.href = None
 
 '''
 This one parses the email and extracts the headers into a dictionary
@@ -47,6 +69,9 @@ def parse_email(raw):
             html_parts.append(body)
     result['text'] = '\n'.join(text_parts)
     result['html'] = '\n'.join(html_parts)
+    parser = LinkParser()
+    parser.feed(result['html'])
+    result['links'] = parser.links
     return result
 
 '''
@@ -110,6 +135,7 @@ def main():
             logger.info('auth: %s', h['auth_results'])  # temp  
             logger.info('text: %d chars, html: %d chars', len(parsed['text']), len(parsed['html']))  # temp
             logger.info('text preview: %r', parsed['text'][:100])  # temp
+            logger.info('links: %s', parsed['links'])  # temp
     return 0
 
 if __name__ == '__main__':

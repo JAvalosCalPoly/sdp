@@ -52,9 +52,16 @@ def parse_email(raw):
     result['headers']['received'] = [decode_str(received) for received in msg.get_all('Received', [])]
     text_parts = []
     html_parts = []
+    attachments = []
     for part in msg.walk():
         if part.get_content_disposition() == 'attachment':
-            continue  # skip files
+            payload = part.get_payload(decode=True)
+            attachments.append({
+                'filename': decode_str(part.get_filename()),
+                'type': part.get_content_type(),
+                'size': len(payload) if payload else 0,  # bytes
+            })
+            continue  # metadata only
         content_type = part.get_content_type()
         if content_type not in ('text/plain', 'text/html'):
             continue
@@ -69,6 +76,7 @@ def parse_email(raw):
             html_parts.append(body)
     result['text'] = '\n'.join(text_parts)
     result['html'] = '\n'.join(html_parts)
+    result['attachments'] = attachments
     parser = LinkParser()
     parser.feed(result['html'])
     result['links'] = parser.links
@@ -136,6 +144,7 @@ def main():
             logger.info('text: %d chars, html: %d chars', len(parsed['text']), len(parsed['html']))  # temp
             logger.info('text preview: %r', parsed['text'][:100])  # temp
             logger.info('links: %s', parsed['links'])  # temp
+            logger.info('attachments: %s', parsed['attachments'])  # temp
     return 0
 
 if __name__ == '__main__':

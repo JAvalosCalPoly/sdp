@@ -1,1 +1,5 @@
 *.txt
+
+env.fish
+__pycache__/
+*.pyc

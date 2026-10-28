@@ -10,6 +10,32 @@ count = 10
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+'''
+This one parses the email and extracts the headers into a dictionary
+the result is a dictionary containing the decoded email headers.
+'''
+
+def parse_email(raw):
+    msg = email.message_from_bytes(raw)
+    result = {}
+    result['headers'] = {
+        'from': decode_str(msg['From']),
+        'subject': decode_str(msg['Subject']),
+        'date': decode_str(msg['Date']),
+        'reply_to': decode_str(msg['Reply-To']),
+        'to': decode_str(msg['To']),
+        'return_path': decode_str(msg['Return-Path']),
+        'auth_results': decode_str(msg['Authentication-Results'])
+    }
+    result['headers']['received'] = [decode_str(received) for received in msg.get_all('Received', [])]
+    return result
+
+'''
+For this one, we are decoding email header strings that could be encoded differently
+I assume utf-8 and replace errors with a placeholder
+then join them into the string :)
+'''
+
 def decode_str(s):
     if s is None:
         return ''
@@ -17,7 +43,6 @@ def decode_str(s):
     for part, encoding in decode_header(s):
         if isinstance(part, bytes): 
             if encoding is None:
-                # assume utf-8
                 part = part.decode('utf-8', errors='replace')
             else:
                 part = part.decode(encoding, errors='replace')
@@ -54,17 +79,16 @@ def main():
         logger.info('Found %d messages', len(message_ids))
         for message_id in reversed(message_ids):
             # fetch the message by id
-            status, data = mail.fetch(message_id, 'BODY.PEEK[HEADER]')
+            status, data = mail.fetch(message_id, '(BODY.PEEK[])')
             if status != 'OK':
                 logger.error('Failed to fetch message %s: %s', message_id.decode(), status)
                 continue
             # data[0] is a tuple (b'1 (RFC822 {1234}', b'...raw email...')
             raw_email = data[0][1]
-            msg = email.message_from_bytes(raw_email)
-            subject = decode_str(msg['Subject'])
-            date = decode_str(msg['Date'])
-            sender = decode_str(msg['From'])
-            logger.info('%s | %s | %s', date, sender, subject)    
+            parsed = parse_email(raw_email)
+            h = parsed['headers']
+            logger.info('%s | %s | %s', h['date'], h['from'], h['subject'])
+            logger.info('auth: %s', h['auth_results'])  # temp  
     return 0
 
 if __name__ == '__main__':
